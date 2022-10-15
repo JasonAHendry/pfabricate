@@ -1,6 +1,9 @@
 import random
 import numpy as np
+import pandas as pd
 from itertools import combinations
+from pfabricate.mixed.chromosomes import ChromosomeFactory
+from pfabricate.util.ibd import create_pairwise_ibd_matrix, get_ibd_segment_dataframe
 
 
 # TODO
@@ -215,3 +218,93 @@ def meiosis(parents, chromosomes, n_oocysts, n_select=None, force_outbred=True):
 # Meiosis engine, for running meiosis multiple times while tracking IBD
 #
 # --------------------------------------------------------------------------------
+
+
+class MeiosisEngine:
+    def __init__(self, haplotypes, chroms, pos, oocyst_maker):
+        """
+        Engine for running meiosis multiple times, while tracking
+        the IBD that is generated
+
+        Note:
+        - There is some rather ugly coupling here, namely to the
+        `Chromosome` and `ChromosomeFactory` classes
+        
+        """
+        self.n_haplotypes, self.n_sites = haplotypes.shape
+        self.haplotypes = haplotypes
+        self.chroms = chroms
+        self.pos = pos
+        self.chromosomes = self._create_chromosomes()
+        self.oocyst_maker = oocyst_maker
+        
+        self.parents = self._create_parents()
+        self.progeny = None
+        self.n_progeny = 0
+
+    def _create_chromosomes(self):
+        """
+        Prepare chromosomes for meiosis
+        
+        """
+        chrom_factory = ChromosomeFactory(self.chroms, self.pos)
+        
+        return chrom_factory.create_chromosomes()
+
+    def _create_parents(self):
+        """
+        Create `parents` where each haplotype
+        is assign a unique integer index
+        
+        """
+        parents = np.zeros((self.n_haplotypes, self.n_sites))
+        for i in np.arange(self.n_haplotypes):
+            parents[i] = i
+        return parents
+    
+    def run(self, n_rounds=1, n_select=None, force_outbred=True):
+        """
+        Run meiosis for `n_rounds`, selecting `n_select` progeny
+        after each round
+        
+        """
+        
+        oocysts = self.oocyst_maker.sample_oocysts(n_rounds)
+        for n in oocysts:
+            self.progeny = meiosis(
+                parents=self.parents,
+                chromosomes=self.chromosomes,
+                n_oocysts=n,
+                n_select=n_select,
+                force_outbred=force_outbred
+            )
+            self.parents = self.progeny
+            self.n_progeny = self.progeny.shape[0]
+    
+    def get_progeny_haplotypes(self):
+        """
+        Get haplotypes of the current meiotic progeny
+        
+        """
+        
+        return self.haplotypes[self.progeny, range(self.progeny.shape[1])]
+        
+    def get_ibd_segment_dataframe(self):
+        """
+        Get IBD segments between all pairwise combinations
+        of the meiotic progeny
+        
+        """
+        
+        ibd_matrix = create_pairwise_ibd_matrix(
+            self.progeny
+        )
+        
+        ibd_dfs = []
+        for i, j in combinations(range(self.n_progeny), 2):
+            ibd_df = get_ibd_segment_dataframe(ibd_matrix[i, j], self.chroms, self.pos)
+            ibd_df.insert(0, "strain1", i)
+            ibd_df.insert(1, "strain2", j)
+            ibd_dfs.append(ibd_df)
+            
+        return pd.concat(ibd_dfs)
