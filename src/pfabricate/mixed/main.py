@@ -5,15 +5,22 @@ from scipy.stats import dirichlet
 from dataclasses import dataclass
 
 
-def mixed(input_vcf, K):
+def mixed(
+    input_vcf, output_dir, K, n_simulate, max_M, depth_mean, depth_shape, e_0, e_1
+):
     """
-    Simulate mixed infections of COI=`K` from an `input_vcf`
+    Stochastically simulate mixed infections of COI=`K` from an `input_vcf`
+
+    Model:
+
+    - Read depth from a negative binomial
+    - WSAF from a betabinomial
 
 
     TODO:
     - What is the best way to handle `M`
         - What are the requirements?
-    - How am I handling multiple chromosomes
+    - Provide access to dirichlet shape parameter
 
     """
 
@@ -33,15 +40,15 @@ def mixed(input_vcf, K):
 
     # Model
     # TODO: will probably come from arguments
-    depth_mean = 500
-    depth_shape = 20
-    e_0 = 0.0001  # error rate, ref -> alt
-    e_1 = 0.005  # error rate, alt -> ref
+    # depth_mean = 500
+    # depth_shape = 20
+    # e_0 = 0.0001  # error rate, ref -> alt
+    # e_1 = 0.005  # error rate, alt -> ref
 
-    # Simulation
-    n_simulate = 20
-    K = 2
-    max_M = 3
+    # # Simulation
+    # n_simulate = 20
+    # K = 2
+    # max_M = 3
 
     # SAMPLE
     # Proportions
@@ -119,14 +126,14 @@ def mixed(input_vcf, K):
         # meiosis
         # --------------------------------------------------------------------------------
 
-        read_simulator = ReadSimulator(
-            haplotypes=infection_haplotypes,
-            proportions=infection_proportions,
-            mean_depth=mean_depth,
-            e_0=e_0,
-            e_1=e_1,
-        )
-        read_data = read_simulator.simulate()
+        # read_simulator = ReadSimulator(
+        #     haplotypes=infection_haplotypes,
+        #     proportions=infection_proportions,
+        #     mean_depth=mean_depth,
+        #     e_0=e_0,
+        #     e_1=e_1,
+        # )
+        # read_data = read_simulator.simulate()
 
         # So, now we have our ALT and REF read counts under the model
         # I can also (relatively) easily make the genotype calls

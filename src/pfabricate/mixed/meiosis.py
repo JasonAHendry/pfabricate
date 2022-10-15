@@ -229,7 +229,7 @@ class MeiosisEngine:
         Note:
         - There is some rather ugly coupling here, namely to the
         `Chromosome` and `ChromosomeFactory` classes
-        
+
         """
         self.n_haplotypes, self.n_sites = haplotypes.shape
         self.haplotypes = haplotypes
@@ -237,7 +237,7 @@ class MeiosisEngine:
         self.pos = pos
         self.chromosomes = self._create_chromosomes()
         self.oocyst_maker = oocyst_maker
-        
+
         self.parents = self._create_parents()
         self.progeny = None
         self.n_progeny = 0
@@ -245,30 +245,30 @@ class MeiosisEngine:
     def _create_chromosomes(self):
         """
         Prepare chromosomes for meiosis
-        
+
         """
         chrom_factory = ChromosomeFactory(self.chroms, self.pos)
-        
+
         return chrom_factory.create_chromosomes()
 
     def _create_parents(self):
         """
         Create `parents` where each haplotype
         is assign a unique integer index
-        
+
         """
         parents = np.zeros((self.n_haplotypes, self.n_sites))
         for i in np.arange(self.n_haplotypes):
             parents[i] = i
         return parents
-    
+
     def run(self, n_rounds=1, n_select=None, force_outbred=True):
         """
         Run meiosis for `n_rounds`, selecting `n_select` progeny
         after each round
-        
+
         """
-        
+
         oocysts = self.oocyst_maker.sample_oocysts(n_rounds)
         for n in oocysts:
             self.progeny = meiosis(
@@ -276,35 +276,33 @@ class MeiosisEngine:
                 chromosomes=self.chromosomes,
                 n_oocysts=n,
                 n_select=n_select,
-                force_outbred=force_outbred
+                force_outbred=force_outbred,
             )
             self.parents = self.progeny
             self.n_progeny = self.progeny.shape[0]
-    
+
     def get_progeny_haplotypes(self):
         """
         Get haplotypes of the current meiotic progeny
-        
+
         """
-        
+
         return self.haplotypes[self.progeny, range(self.progeny.shape[1])]
-        
+
     def get_ibd_segment_dataframe(self):
         """
         Get IBD segments between all pairwise combinations
         of the meiotic progeny
-        
+
         """
-        
-        ibd_matrix = create_pairwise_ibd_matrix(
-            self.progeny
-        )
-        
+
+        ibd_matrix = create_pairwise_ibd_matrix(self.progeny)
+
         ibd_dfs = []
         for i, j in combinations(range(self.n_progeny), 2):
             ibd_df = get_ibd_segment_dataframe(ibd_matrix[i, j], self.chroms, self.pos)
             ibd_df.insert(0, "strain1", i)
             ibd_df.insert(1, "strain2", j)
             ibd_dfs.append(ibd_df)
-            
+
         return pd.concat(ibd_dfs)
