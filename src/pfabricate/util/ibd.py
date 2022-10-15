@@ -74,6 +74,9 @@ def get_ibd_segment_dataframe(ibd, chroms, pos):
         start = p
         end = p
 
+    if state:
+        ibd_segs.append(IBDSegment(chrom=cc, start=start, end=end))
+
     return pd.DataFrame(ibd_segs)
 
 
@@ -88,7 +91,7 @@ def calc_n50(segments):
     returns
         _ : float
             A length X of the smallest segment in the set where
-            at least 50% of all bases are in segments smaller than X. 
+            at least 50% of all bases are in segments smaller than X.
             Alternatively, the median segment size weighted by size.
 
     """
@@ -96,12 +99,12 @@ def calc_n50(segments):
     if not isinstance(segments, np.ndarray):
         segments = np.array(segments)
     assert (segments > 0).all()
-    
+
     if len(segments) == 0:
         return np.nan
     segments.sort()
     total = segments.sum()
-    cuml_frac = (segments/total).sum()
+    cuml_frac = (segments / total).sum()
     ix = np.argmax(cuml_frac > 0.5)
-    
+
     return segments[ix]
