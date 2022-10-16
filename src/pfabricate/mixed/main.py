@@ -1,12 +1,17 @@
-import os
+import random
 import numpy as np
+import pandas as pd
 from allel import read_vcf
 from scipy.stats import dirichlet
-from dataclasses import dataclass
+from pfabricate.util.generic import produce_dir
+from pfabricate.util.ibd import calc_n50
+from .meiosis import MeiosisEngine, OocystMaker, partition_strains
+from .sequencing import convert_ad_to_haplotypes, simulate_read_data
+from .chromosomes import ChromosomeFactory
 
 
 def mixed(
-    input_vcf, output_dir, K, n_simulate, max_M, depth_mean, depth_shape, e_0, e_1
+    input_vcf, output_dir, coi, n_simulate, max_M, depth_mean, depth_shape, e_0, e_1
 ):
     """
     Stochastically simulate mixed infections of COI=`K` from an `input_vcf`
@@ -15,151 +20,149 @@ def mixed(
 
     - Read depth from a negative binomial
     - WSAF from a betabinomial
+    - Print statements
 
 
     TODO:
     - What is the best way to handle `M`
         - What are the requirements?
     - Provide access to dirichlet shape parameter
+    - Vastly improve storage
+    - Better handle cases where no IBD is generated
 
     """
 
-    # PARSE INPUTS
+    # Prepare parameters
+    K = coi
+    output_dir = produce_dir(output_dir)
 
-    # LOAD DATA
-    vcf = read_vcf(input=input_vcf)
+    # Load VCF
+    vcf = read_vcf(
+        input=input_vcf,
+        fields=["samples", "variants/CHROM", "variants/POS", "calldata/AD"],
+    )
+
+    # Extract relevant fields
     samples = vcf["samples"]
     chroms = vcf["variants/CHROM"]
     pos = vcf["variants/POS"]
-    gt = vcf["calldata/GT"].sum(2)
+    ad = vcf["calldata/AD"]
 
-    # PARAMETERS
-    # Data
+    # Create haplotypes from allelic depth
+    haplotypes = convert_ad_to_haplotypes(ad)
+
     n_snps = pos.shape[0]
     n_samples = samples.shape[0]
 
-    # Model
-    # TODO: will probably come from arguments
-    # depth_mean = 500
-    # depth_shape = 20
-    # e_0 = 0.0001  # error rate, ref -> alt
-    # e_1 = 0.005  # error rate, alt -> ref
+    chrom_factory = ChromosomeFactory(chroms=chroms, pos=pos)
+    chromosomes = chrom_factory.create_chromosomes()
+    genome_kbp = sum([c.l_kbp for c in chromosomes])
 
-    # # Simulation
-    # n_simulate = 20
-    # K = 2
-    # max_M = 3
+    oocyst_maker = OocystMaker()
 
     # SAMPLE
-    # Proportions
     simulated_proportions = dirichlet.rvs(alpha=np.ones(K), size=n_simulate)
 
-    # Bites
-    simulated_bites = np.random.choice(a=np.arange(1, K), size=n_simulate, replace=True)
+    simulated_bites = np.random.choice(a=range(1, K + 1), size=n_simulate, replace=True)
 
-    # Meioses
-    # For now, we will draw one per infection
-    # - Should be zero if B == K
-    # - Probably want to draw this later...
     simulated_meioses = np.random.choice(
-        a=np.arange(1, max_M), size=n_simulate, replace=True
+        a=range(1, max_M + 1), size=n_simulate, replace=True
     )
+    simulated_meioses[simulated_bites == K] = 0
 
-    # SIMULATE
-    @dataclass
-    class SimulatedInfection:
-        """
-        Well... this needs to expand somehow
-        depending on K
-
-        """
-
-        pass
+    # STORAGE
+    sample_dt = {f"samp{i:02d}": [] for i in range(K)}
+    prop_dt = {f"prop{i:02d}": simulated_proportions[:, i] for i in range(K)}
+    statistic_dt = {
+        "K": np.repeat(K, n_simulate),
+        "Keff": 1 / (simulated_proportions**2).sum(1),
+        "B": simulated_bites,
+        "M": simulated_meioses,
+        "f_ibd": np.zeros(n_simulate),
+        "l_ibd": np.zeros(n_simulate),
+        "n50_ibd": np.zeros(n_simulate),
+    }
+    summary_dt = {
+        "sample_id": [
+            f"SMI{i:03d}-K{K:02d}-B{B:02d}-M{M:02d}"
+            for i, (B, M) in enumerate(zip(simulated_bites, simulated_meioses))
+        ]
+    }
+    summary_dt.update(statistic_dt)
+    summary_dt.update(sample_dt)
+    summary_dt.update(prop_dt)
 
     for i in range(n_simulate):
 
-        # Sample K strains
-        ixs = np.random.choice(a=n_samples, size=K, replace=False)
+        # Sample K strains at random
+        ixs = random.sample(range(n_samples), k=K)
 
-        # Pull parameters
+        # Extract infection information
+        props = simulated_proportions[i]
         B = simulated_bites[i]
         M = simulated_meioses[i]
-        inf_samples = samples[ixs]
-        haplotypes = gt[:, ixs]  # I may want to transpose
+        infection_samples = samples[ixs]
+        infection_haplotypes = haplotypes[:, ixs].transpose()
 
-        # may need to *haploidise* here
+        # Store samples
+        for j in range(K):
+            summary_dt[f"samp{j:02d}"].append(infection_samples[j])
 
-        # --------------------------------------------------------------------------------
-        # Create haplotypes within the infection, by simulating
-        # meiosis
-        # --------------------------------------------------------------------------------
+        if B < K:  # co-transmission
 
-        if B == K:
-            # No meiosis is required
-            continue
+            bites = partition_strains(K, B)
 
-        # Partition strains into bites,
-        # simulate meiosis for each bite
-        bites = partition_strains(K, B)
-        transmitted = []
-        for bite in bites:
+            transmitted = []
+            ibd_segs = []
+            for bite in bites:
 
-            # If there is one strain, you don't perform meiosis
-            if len(bite) == 1:
-                continue
+                if len(bite) == 1:  # if one strain, no meiosis
+                    transmitted.append(infection_haplotypes[bite])
+                    continue
 
-            bite_haplotypes = haplotypes[bite]
+                # Run meioses 'M' times
+                meiosis_engine = MeiosisEngine(
+                    haplotypes=infection_haplotypes[bite],
+                    chroms=chroms,
+                    pos=pos,
+                    oocyst_maker=oocyst_maker,
+                )
+                meiosis_engine.run(
+                    n_rounds=M, n_select=len(bite), force_outbred=True  # same in as out
+                )
 
-            # Here we run meiosis `M` times
-            meiosis_engine = MeosisEngine(haplotypes=bite_haplotypes)
-            meiosis_engine.run(rounds=M)
+                # Get haplotypes
+                bite_haplotypes = meiosis_engine.get_progeny_haplotypes()
+                transmitted.append(bite_haplotypes)
 
-            # Here are the output progeny
-            progeny = meiosis_engine.select_progeny(K=b)
-            transmitted.append(progeny)
+                # Get IBD
+                ibd_segments = meiosis_engine.get_ibd_segment_dataframe()
+                ibd_segs.append(ibd_segments)
 
-        # Finalise haplotypes
-        infection_haplotypes = np.vstack(transmitted)
+            # Combine across bites
+            infection_haplotypes = np.vstack(transmitted)
+            ibd_df = pd.concat(ibd_segs)
 
-        # --------------------------------------------------------------------------------
-        # Create haplotypes within the infection, by simulating
-        # meiosis
-        # --------------------------------------------------------------------------------
+            # Compute IBD summary statistics
+            # TODO: WRAP / CLEAN
+            ibd_l_kbp = np.array(ibd_df["length"] / 10**3)  # this is across all pairs
+            n_pairs = K * (K - 1) / 2
+            total_genome_kbp = genome_kbp * n_pairs
+            summary_dt["f_ibd"][i] = ibd_l_kbp.sum() / total_genome_kbp
+            summary_dt["l_ibd"][i] = ibd_l_kbp.mean()
+            summary_dt["n50_ibd"][i] = calc_n50(ibd_l_kbp)
 
-        # read_simulator = ReadSimulator(
-        #     haplotypes=infection_haplotypes,
-        #     proportions=infection_proportions,
-        #     mean_depth=mean_depth,
-        #     e_0=e_0,
-        #     e_1=e_1,
-        # )
-        # read_data = read_simulator.simulate()
+            # Simulate read data
+            read_data = simulate_read_data(
+                haplotypes=infection_haplotypes,
+                proportions=props,
+                depth_mean=depth_mean,
+                depth_shape=depth_shape,
+                alt_shape=500,
+                e_0=e_0,
+                e_1=e_1,
+            )
 
-        # So, now we have our ALT and REF read counts under the model
-        # I can also (relatively) easily make the genotype calls
-        #   - based on the infection haplotypes
-        # So from here, I have a single-sample VCF
-
-        # --------------------------------------------------------------------------------
-        # Outputting 'truths'
-        #
-        # --------------------------------------------------------------------------------
-        #
-        # - So I know K and proportions, those are easy
-        # - What I need to add to this is the IBD results
-        # - So:
-        # - (1) Pairwise IBD profiles between all strains (boolean matrix)
-        # - (2) IBD tracks [truth tracks]
-        # - (3) - Mean fraction, Length, and N50
-
-        # What is the best structure of these?
-        # How does hmmIBD output it's pairwise IBD data?
-        # Probably want to encode as a table of segments, but look at other tools
-        # /output_dir
-        #   /parameters.json (or .log)
-        #   /summary.csv
-        #   /simulated_infections.vcf
-        #   /simulated_ibd
-        # /<inf_name>
-        #     pairwise_profiles.npy
-        #     pairwise_statistics.npy
+    # Summary data frame
+    summary_df = pd.DataFrame(summary_dt)
+    summary_df.to_csv(f"{output_dir}/test.csv", index=False)
