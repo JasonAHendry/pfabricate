@@ -30,7 +30,7 @@ MAX_FRAC_MISSING = 0.05
     "--samples",
     type=str,
     default=None,
-    help=f"Text file listing samples to include in population. Same as `bcftools view -S`. [Optional]",
+    help=f"Text file listing samples to include in population. Same as `bcftools view -S`. [optional]",
 )
 @click.option(
     "-p",
