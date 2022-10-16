@@ -2,8 +2,23 @@ import numpy as np
 from scipy.stats import nbinom, betabinom
 
 
+def convert_ad_to_haplotypes(ad):
+    """
+    Convert allleic depth array `ad` into clonal
+    haplotypes
+
+    """
+    if ad.shape[2] > 2:
+        ad = ad[:, :, :2]  # biallelic
+
+    haplotypes = np.argmax(ad, axis=2)
+    assert ((haplotypes == 0) | (haplotypes == 1)).all()
+
+    return haplotypes
+
+
 def simulate_read_data(
-    haplotypes, proportions, mean_depth, depth_shape, alt_shape, e_0, e_1
+    haplotypes, proportions, depth_mean, depth_shape, alt_shape, e_0, e_1
 ):
     """
     Simulate read data haplotypes and model parameters
@@ -14,6 +29,9 @@ def simulate_read_data(
             strains across all SNPs.
         proportions : ndarray, float, shape (K)
             Proportions for all strains.
+        depth_mean : float
+            Specifies mean depth in negative binommial
+            model.
         depth_shape : float
             Specifies dispersion in the negative
             binomial distribution that is used to
@@ -47,7 +65,7 @@ def simulate_read_data(
 
     # READ DEPTH
     read_depths = nbinom.rvs(
-        n=depth_shape, p=depth_shape / (depth_shape + mean_depth), size=n_snps
+        n=depth_shape, p=depth_shape / (depth_shape + depth_mean), size=n_snps
     )
 
     # EXPECTED WSAF (including error)
