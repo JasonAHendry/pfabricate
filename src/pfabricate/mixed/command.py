@@ -7,13 +7,12 @@ import click
 # --------------------------------------------------------------------------------
 
 
-# MIN_PLAF = 0.1
-# MAX_PLAF = 0.9
-# MIN_AVG_DEPTH = 20
-# MAX_AVG_DEPTH = 150
-# MAX_LINKAGE = 0.2
-# WINDOW_SIZE = 4000
-# MAX_FRAC_MISSING = 0.05
+N_SIMULATE = 20
+MAX_M = 3
+DEPTH_MEAN = 50
+DEPTH_SHAPE = 100
+E_0 = 0.0001
+E_1 = 0.005
 
 
 # --------------------------------------------------------------------------------
@@ -23,7 +22,7 @@ import click
 
 
 @click.command(short_help="Simulate a mixed infection.")
-@click.option("-i", "--input_vcf", type=str, required=True, help="Input VCF to filter.")
+@click.option("-i", "--input_vcf", type=str, required=True, help="Input VCF from which mixed infections simulated. Ideally contains only clonal samples.")
 @click.option(
     "-o", "--output_dir", type=str, required=True, help="Path of output directory."
 )
@@ -34,50 +33,50 @@ import click
     "-n",
     "--n_simulate",
     type=int,
-    required=True,
-    default=20,
-    help="Number of mixed infections to simulate.",
+    required=False,
+    default=N_SIMULATE,
+    help=f"Number of mixed infections to simulate. Default={N_SIMULATE}.",
 )
 @click.option(
     "-M",
     "--max_M",
     type=int,
     required=False,
-    default=3,
-    help="Maximum number of meioses to simulate per mixed infection. The higher this value, the more IBD will be present in the mixed infections.",
+    default=MAX_M,
+    help=f"Maximum number of meioses to simulate per mixed infection. The higher this value, the more IBD will be present in the mixed infections. Default={MAX_M}.",
 )
 @click.option(
     "-d",
     "--depth_mean",
     type=float,
     required=False,
-    default=50,
-    help="Mean depth of simulated read data.",
+    default=DEPTH_MEAN,
+    help=f"Mean depth of simulated read data. Default={DEPTH_MEAN}.",
 )
 @click.option(
     "-s",
     "--depth_shape",
     type=float,
     required=False,
-    default=100,
-    help="Shape parameter controlling noise in read depth and WSAF values. Feeds into betabinomial distribution; higher values reduce variance.",
+    default=DEPTH_SHAPE,
+    help=f"Shape parameter controlling noise in read depth and WSAF values. Feeds into betabinomial distribution; higher values reduce variance. Default={DEPTH_SHAPE}.",
 )
 @click.option(
     "--e_0",
     type=float,
     required=False,
-    default=0.01,
-    help="Error rate for conversion of reference calls to alternative.",
+    default=E_0,
+    help=f"Error rate for conversion of reference calls to alternative. Default={E_0}.",
 )
 @click.option(
     "--e_1",
     type=float,
     required=False,
-    default=0.01,
-    help="Error rate for conversion of alternative calls to reference.",
+    default=E_1,
+    help=f"Error rate for conversion of alternative calls to reference. Default={E_1}.",
 )
 def mixed(
-    input_vcf, output_dir, K, n_simulate, max_M, depth_mean, depth_shape, e_0, e_1
+    input_vcf, output_dir, coi, n_simulate, max_m, depth_mean, depth_shape, e_0, e_1
 ):
     """
     Stochastically simulate mixed infections of a particular COI from a VCF
@@ -86,5 +85,5 @@ def mixed(
     from .main import mixed
 
     mixed(
-        input_vcf, output_dir, K, n_simulate, max_M, depth_mean, depth_shape, e_0, e_1
+        input_vcf, output_dir, coi, n_simulate, max_m, depth_mean, depth_shape, e_0, e_1
     )
