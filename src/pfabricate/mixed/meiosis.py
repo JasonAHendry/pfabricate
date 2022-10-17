@@ -13,6 +13,37 @@ from pfabricate.util.ibd import create_pairwise_ibd_matrix, get_ibd_segment_data
 
 
 # --------------------------------------------------------------------------------
+# Trasmission function
+#
+# --------------------------------------------------------------------------------
+
+
+def partition_strains(K, n_bites):
+    """
+    Partition `K` strains randomly into
+    `n_bites`
+
+    params
+        K : int
+            Number of strains in the infection.
+        n_bites : int
+            Number of bites by which the `K`
+            strains are delivered to the infection.
+
+    returns
+        bites : list of lists, int, len(n_bites)
+            A list of `n_bites` lists, each sub-list
+            gives the indices of the strains that were
+            delivered in that bite.
+
+    """
+    bites = [[i] for i in np.arange(n_bites)]
+    for i in np.arange(n_bites, K):
+        bites[np.random.choice(n_bites)].append(i)
+    return bites
+
+
+# --------------------------------------------------------------------------------
 # Individual steps in Meiosis
 #
 # --------------------------------------------------------------------------------
@@ -34,6 +65,7 @@ class OocystMaker:
         self.probs[9] += 1 - self.probs.sum()
 
     def sample_oocysts(self, n):
+
         return random.choices(self.oocysts, k=n, weights=self.probs)
 
 
@@ -126,6 +158,7 @@ def segregate(bivalent):
     """
 
     shuffle = random.sample(range(4), k=4)
+
     return np.vstack([bivalent[:, :, 0], bivalent[:, :, 1]])[shuffle]
 
 
@@ -152,6 +185,7 @@ def get_recombinant_selections(zygotes, n_select):
         if ii[list(selection)].sum()
         > 0  # at least one of the progeny must be from an outbred oocyst
     ]
+
     return recombinant_selections
 
 
@@ -231,6 +265,7 @@ class MeiosisEngine:
         `Chromosome` and `ChromosomeFactory` classes
 
         """
+
         self.n_haplotypes, self.n_sites = haplotypes.shape
         self.haplotypes = haplotypes
         self.chroms = chroms
@@ -247,6 +282,7 @@ class MeiosisEngine:
         Prepare chromosomes for meiosis
 
         """
+
         chrom_factory = ChromosomeFactory(self.chroms, self.pos)
 
         return chrom_factory.create_chromosomes()
@@ -257,6 +293,7 @@ class MeiosisEngine:
         is assign a unique integer index
 
         """
+
         parents = np.zeros((self.n_haplotypes, self.n_sites))
         for i in np.arange(self.n_haplotypes):
             parents[i] = i
