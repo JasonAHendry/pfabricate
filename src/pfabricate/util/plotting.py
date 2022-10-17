@@ -46,7 +46,7 @@ class WSAFPlotter:
 
         fig, ax = plt.subplots(1, 1, figsize=(10, 4))
 
-        ax.scatter(x=self.plot_pos, y=wsaf, c=self.chrom_cols, s=5)
+        ax.scatter(x=self.plot_pos, y=wsaf, c=self.chrom_cols, s=2)
 
         ax.set_title(title, loc="left")
         ax.set_ylabel("WSAF")
