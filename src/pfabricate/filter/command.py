@@ -26,8 +26,15 @@ MAX_FRAC_MISSING = 0.05
 @click.option("-i", "--input_vcf", type=str, required=True, help="Input VCF to filter.")
 @click.option("-o", "--output_vcf", type=str, required=True, help="Name of output VCF.")
 @click.option(
-    "-S",
+    "-s",
     "--samples",
+    type=str,
+    default=None,
+    help=f"Comma separated list of samples to include in population. [optional]",
+)
+@click.option(
+    "-S",
+    "--samples_file",
     type=str,
     default=None,
     help=f"Text file listing samples to include in population. Same as `bcftools view -S`. [optional]",
@@ -85,6 +92,7 @@ def filter(
     input_vcf,
     output_vcf,
     samples,
+    samples_file,
     min_plaf,
     max_plaf,
     min_avg_depth,
@@ -104,6 +112,7 @@ def filter(
         input_vcf=input_vcf,
         output_vcf=output_vcf,
         samples=samples,
+        samples_file=samples_file,
         min_plaf=min_plaf,
         max_plaf=max_plaf,
         min_avg_depth=min_avg_depth,

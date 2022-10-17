@@ -126,6 +126,7 @@ def filter(
     input_vcf,
     output_vcf,
     samples,
+    samples_file,
     min_plaf,
     max_plaf,
     min_avg_depth,
@@ -145,8 +146,10 @@ def filter(
     print("Parameters")
     print(f"  Input VCF: {input_vcf}")
     print(f"  Output VCF: {output_vcf}")
-    if samples is not None:
-        print(f"  Target sample file: {samples}")
+    if samples_file is not None:
+        print(f"  Target sample file: {samples_file}")
+    elif samples is not None:
+        print(f"  Target samples include: {samples[:20]}...")
     else:
         print("  Including all samples.")
     print(f"  Minimum PLAF: {min_plaf}")
@@ -166,9 +169,13 @@ def filter(
 
     # FILTERS
     # (1) Samples
-    if samples is not None:
+    if samples_file is not None:
         print("Filtering to indicated samples...")
-        vcf_filter.bcftools(subcommand="view", args=["-S", samples])
+        vcf_filter.bcftools(subcommand="view", args=["-S", samples_file])
+        vcf_reports.append(ReportVCF.from_vcf(vcf_filter.current_vcf, "samples"))
+    elif samples is not None:
+        print("Filtering to indicated samples...")
+        vcf_filter.bcftools(subcommand="view", args=["-s", samples])
         vcf_reports.append(ReportVCF.from_vcf(vcf_filter.current_vcf, "samples"))
 
     # (2) Biallelic SNPs
