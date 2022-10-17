@@ -20,6 +20,7 @@ def mixed(
     max_M,
     depth_mean,
     depth_shape,
+    wsaf_shape,
     e_0,
     e_1,
     include_plots,
@@ -195,7 +196,7 @@ def mixed(
             proportions=props,
             depth_mean=depth_mean,
             depth_shape=depth_shape,
-            alt_shape=500,
+            alt_shape=wsaf_shape,
             e_0=e_0,
             e_1=e_1,
         )
@@ -212,7 +213,7 @@ def mixed(
             wsaf = read_data["alt"] / read_data["depth"] + 0.01
             wsaf_plotter.plot(
                 wsaf=wsaf,
-                title=f"{sample_id} | props={', '.join([f'{p:.02f}' for p in props])}",
+                title=f"{sample_id} | $p=${', '.join([f'{p:.02f}' for p in props])} | $f=${summary_dt['f_ibd'][i]:02f}",
                 output_path=f"{plot_dir}/plot.{sample_id}.wsaf.png",
             )
 
