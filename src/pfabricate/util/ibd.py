@@ -104,7 +104,7 @@ def calc_n50(segments):
         return np.nan
     segments.sort()
     total = segments.sum()
-    cuml_frac = (segments / total).sum()
+    cuml_frac = (segments / total).cumsum()
     ix = np.argmax(cuml_frac > 0.5)
 
     return segments[ix]
