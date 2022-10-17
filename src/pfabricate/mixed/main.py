@@ -5,6 +5,7 @@ from allel import read_vcf
 from scipy.stats import dirichlet
 from pfabricate.util.generic import produce_dir
 from pfabricate.util.ibd import calc_n50
+from pfabricate.util.process_vcfs import VCFBuilder
 from .meiosis import MeiosisEngine, OocystMaker, partition_strains
 from .sequencing import convert_ad_to_haplotypes, simulate_read_data
 from .chromosomes import ChromosomeFactory
@@ -39,13 +40,18 @@ def mixed(
     # Load VCF
     vcf = read_vcf(
         input=input_vcf,
-        fields=["samples", "variants/CHROM", "variants/POS", "calldata/AD"],
+        fields=["samples", 
+        "variants/CHROM", "variants/POS", 
+        "variants/REF", "variants/ALT",
+        "calldata/AD"],
     )
 
     # Extract relevant fields
     samples = vcf["samples"]
     chroms = vcf["variants/CHROM"]
     pos = vcf["variants/POS"]
+    ref = vcf["variants/REF"]
+    alt = vcf["variants/ALT"]
     ad = vcf["calldata/AD"]
 
     # Create haplotypes from allelic depth
@@ -71,6 +77,19 @@ def mixed(
     simulated_meioses[simulated_bites == K] = 0
 
     # STORAGE
+    # VCF
+    vcf_builder = VCFBuilder()
+    vcf_builder.populate_variant_columns(
+        CHROM=chroms,
+        POS=pos,
+        REF=ref,
+        ALT=alt[:, 0] # assuming biallelic
+    )
+    vcf_builder.set_sample_format(
+        AD=True, DP=True
+    )
+
+    # Summary table
     sample_dt = {f"samp{i:02d}": [] for i in range(K)}
     prop_dt = {f"prop{i:02d}": simulated_proportions[:, i] for i in range(K)}
     statistic_dt = {
@@ -91,6 +110,9 @@ def mixed(
     summary_dt.update(statistic_dt)
     summary_dt.update(sample_dt)
     summary_dt.update(prop_dt)
+
+    # IBD segments
+    ibd_dfs = []
 
     for i in range(n_simulate):
 
@@ -142,6 +164,8 @@ def mixed(
             # Combine across bites
             infection_haplotypes = np.vstack(transmitted)
             ibd_df = pd.concat(ibd_segs)
+            ibd_df.insert(0, "sample_id", summary_dt["sample_id"][i])
+            ibd_dfs.append(ibd_df)
 
             # Compute IBD summary statistics
             # TODO: WRAP / CLEAN
@@ -163,6 +187,29 @@ def mixed(
                 e_1=e_1,
             )
 
-    # Summary data frame
+            # Store
+            vcf_builder.add_sample(
+                sample_name=summary_dt["sample_id"][i],
+                DP=read_data["depth"],
+                AD=["f{r},{a}" 
+                    for r, a in zip(read_data["ref"],read_data["alt"])]
+            )
+
+    # Write results
+    # VCF
+    vcf_builder.write_vcf(
+        output_path=f"{output_dir}/simulated_infections.vcf",
+        source="pfabricate"
+    )
+    # Summary
     summary_df = pd.DataFrame(summary_dt)
-    summary_df.to_csv(f"{output_dir}/test.csv", index=False)
+    summary_df.to_csv(
+        f"{output_dir}/simulated_infections.summary.csv", 
+        index=False
+        )
+    # IBD
+    combined_ibd = pd.concat(ibd_dfs)
+    combined_ibd.to_csv(
+        f"{output_dir}/simulated_infections.ibd_segments.csv",
+        index=False
+    )
