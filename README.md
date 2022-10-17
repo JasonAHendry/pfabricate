@@ -5,14 +5,20 @@
 
 ## Install
 
-`pfabricate` is implement in python and it's dependencies can be installed using conda. If haven't already, first install [conda](https://conda.io/projects/conda/en/latest/index.html). Then run:
+`pfabricate` is implemented in python and has dependencies that can be installed using [conda](https://conda.io/projects/conda/en/latest/index.html):
+
+With conda installed, run:
 
 ```
+
 conda update conda
 conda env create
 conda activate pfabricate
+
 ```
-Now you have installed and activated a virtual environment containing all of `pfabricate`s dependencies. Finally, locally install `pfabricate`:
+
+Now you have installed and activated a virtual environment containing all necessary dependencies. Next, locally install `pfabricate`:
+
 ```
 pip install .
 ```
@@ -32,7 +38,10 @@ Commands:
   mixed   Simulate a mixed infection.
 ```
 
-## TODO:
+## TODO
 - DP filtering by percentile
 - Assumptions associated with simulations
 - Incorporation of background IBD
+- Handling cases where no IBD is generated
+- Most accurate approach for IBD fragment length distances given SNP positions
+- Reconciling K > 4 with recombinant progeny
