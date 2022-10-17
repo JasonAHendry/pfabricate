@@ -38,13 +38,13 @@ COUNTRY_COLLECTION = {
     "--country",
     type=click.Choice(COUNTRY_COLLECTION),
     required=True,
-    help="Output a text file listing all samples belonging to a specific country."
+    help="Output a text file listing all samples belonging to a specific country.",
 )
 def main(country):
     """
     Create a text file containing a set of sample names
     for a given country in Pf6
-    
+
     """
     samples = COUNTRY_COLLECTION[country]
     output_path = f"{METADATA_DIR}/samples.{country}.txt"
@@ -55,6 +55,7 @@ def main(country):
     print(f"  No. samples: {len(samples)}")
     print(f"  Written to: {output_path}")
     print(f"Done.\n")
+
 
 if __name__ == "__main__":
     main()
