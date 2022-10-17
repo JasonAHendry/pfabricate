@@ -1,5 +1,6 @@
 import os
 import click
+import pandas as pd
 from dataclasses import dataclass
 from pfabricate.util.generic import produce_dir
 
@@ -43,6 +44,19 @@ DATASET_COLLECTION = {"pf3k": dataset_pf3k, "pf6": dataset_pf6}
 
 
 # --------------------------------------------------------------------------------
+# Extracting samples
+#
+# --------------------------------------------------------------------------------
+
+
+def get_samples_in_region(metadata, region_dt):
+    qry = " and ".join([f"{k} == " + (f"{v}" if isinstance(v, int) else f"'{v}'")
+                    for k, v in region_dt.items()])
+    df = metadata.query(qry)
+    return df["sample"]
+
+
+# --------------------------------------------------------------------------------
 # MAIN
 #
 # --------------------------------------------------------------------------------
@@ -59,7 +73,7 @@ DATASET_COLLECTION = {"pf3k": dataset_pf3k, "pf6": dataset_pf6}
 @click.option("-p", "--population", type=str, default=None, help="Target population.")
 @click.option("-c", "--country", type=str, default=None, help="Target country.")
 @click.option("-s", "--site", type=str, default=None, help="Target site.")
-@click.option("-y", "--year", type=str, default=None, help="Target year.")
+@click.option("-y", "--year", type=int, default=None, help="Target year.")
 def main(dataset, population, country, site, year):
     """
     Create a BMRC cluster submission script for pfabricate, grouping
@@ -87,6 +101,12 @@ def main(dataset, population, country, site, year):
     print("Directories")
     print(f"  Region: {region_dir}")
     print(f"  VCF: {vcf_dir}")
+    print("Samples")
+    metadata_df = pd.read_csv(vcf_dataset.metadata)
+    samples = get_samples_in_region(metadata_df, ps)
+    sample_str = ",".join(samples)
+    print(f"  No: {len(samples)}")
+    print(f"  E.g.: {','.join(samples[:5])}...")
 
     # Define submission script
     submit_fn = f"submit_pfabricate-filter-{region}.sh"
@@ -97,7 +117,7 @@ def main(dataset, population, country, site, year):
             out_vcf = (
                 f"{vcf_dir}/{os.path.basename(in_vcf).replace('.vcf', '.filter.vcf')}"
             )
-            file.write(f"{SOURCE_COMMAND} filter -i {in_vcf} -o {out_vcf}\n")
+            file.write(f"{SOURCE_COMMAND} filter -i {in_vcf} -o {out_vcf} -s {sample_str}\n")
     print("Done.\n")
     os.chmod(submit_fn, 0o775)
 
