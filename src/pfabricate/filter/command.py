@@ -107,7 +107,6 @@ def filter(
     max_linkage,
     window_size,
     max_frac_missing,
-    include_plots
 ):
     """
     Filter to a reduced set of biallelic SNPs most
@@ -128,5 +127,4 @@ def filter(
         max_linkage=max_linkage,
         window_size=window_size,
         max_frac_missing=max_frac_missing,
-        include_plots=include_plots
     )
