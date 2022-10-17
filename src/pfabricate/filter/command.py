@@ -43,50 +43,57 @@ MAX_FRAC_MISSING = 0.05
     "-p",
     "--min_plaf",
     type=float,
+    show_default=True,
     default=MIN_PLAF,
-    help=f"Filter SNPs with population-level allele frequency less than this value. Default={MIN_PLAF}.",
+    help=f"Filter SNPs with population-level allele frequency less than this value.",
 )
 @click.option(
     "-P",
     "--max_plaf",
     type=float,
+    show_default=True,
     default=MAX_PLAF,
-    help=f"Filter SNPs with population-level allele frequency greater than this value. Default={MAX_PLAF}.",
+    help=f"Filter SNPs with population-level allele frequency greater than this value.",
 )
 @click.option(
     "-d",
     "--min_avg_depth",
     type=float,
+    show_default=True,
     default=MIN_AVG_DEPTH,
-    help=f"Filter SNPs with a mean read depth across samples of < `--min_avg_depth`. Default={MIN_AVG_DEPTH}.",
+    help=f"Filter SNPs with a mean read depth across samples of < `--min_avg_depth`.",
 )
 @click.option(
     "-D",
     "--max_avg_depth",
     type=float,
+    show_default=True,
     default=MAX_AVG_DEPTH,
-    help=f"Filter SNPs with a mean read depth across samples of > `--max_avg_depth`. Default={MAX_AVG_DEPTH}.",
+    help=f"Filter SNPs with a mean read depth across samples of > `--max_avg_depth`.",
 )
 @click.option(
     "-L",
     "--max_linkage",
     type=float,
+    show_default=True,
     default=MAX_LINKAGE,
-    help=f"Filter SNPs with a r2 > `-L` within a window size `-w`. Default={MAX_LINKAGE}.",
+    help=f"Filter SNPs with a r2 > `-L` within a window size `-w`.",
 )
 @click.option(
     "-w",
     "--window_size",
     type=float,
+    show_default=True,
     default=WINDOW_SIZE,
-    help=f"Apply linkage filter to SNPs within `-w` bp of each other. Default={WINDOW_SIZE}.",
+    help=f"Apply linkage filter to SNPs within `-w` bp of each other.",
 )
 @click.option(
     "-F",
     "--max_frac_missing",
     type=float,
+    show_default=True,
     default=MAX_FRAC_MISSING,
-    help=f"Remove SNPs missing in a fraction > `-F` of samples. Default={MAX_FRAC_MISSING}.",
+    help=f"Remove SNPs missing in a fraction > `-F` of samples.",
 )
 def filter(
     input_vcf,
@@ -100,6 +107,7 @@ def filter(
     max_linkage,
     window_size,
     max_frac_missing,
+    include_plots
 ):
     """
     Filter to a reduced set of biallelic SNPs most
@@ -120,4 +128,5 @@ def filter(
         max_linkage=max_linkage,
         window_size=window_size,
         max_frac_missing=max_frac_missing,
+        include_plots=include_plots
     )
