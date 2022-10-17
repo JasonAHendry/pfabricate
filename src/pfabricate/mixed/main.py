@@ -6,13 +6,23 @@ from scipy.stats import dirichlet
 from pfabricate.util.generic import produce_dir
 from pfabricate.util.ibd import calc_n50
 from pfabricate.util.process_vcfs import VCFBuilder
+from pfabricate.util.plotting import WSAFPlotter
 from .meiosis import MeiosisEngine, OocystMaker, partition_strains
 from .sequencing import convert_ad_to_haplotypes, simulate_read_data
 from .chromosomes import ChromosomeFactory
 
 
 def mixed(
-    input_vcf, output_dir, coi, n_simulate, max_M, depth_mean, depth_shape, e_0, e_1
+    input_vcf,
+    output_dir,
+    coi,
+    n_simulate,
+    max_M,
+    depth_mean,
+    depth_shape,
+    e_0,
+    e_1,
+    include_plots,
 ):
     """
     Stochastically simulate mixed infections of COI=`K` from an `input_vcf`
@@ -40,10 +50,14 @@ def mixed(
     # Load VCF
     vcf = read_vcf(
         input=input_vcf,
-        fields=["samples", 
-        "variants/CHROM", "variants/POS", 
-        "variants/REF", "variants/ALT",
-        "calldata/AD"],
+        fields=[
+            "samples",
+            "variants/CHROM",
+            "variants/POS",
+            "variants/REF",
+            "variants/ALT",
+            "calldata/AD",
+        ],
     )
 
     # Extract relevant fields
@@ -53,6 +67,11 @@ def mixed(
     ref = vcf["variants/REF"]
     alt = vcf["variants/ALT"]
     ad = vcf["calldata/AD"]
+
+    if include_plots:
+        plot_dir = produce_dir(output_dir, "plots")
+        wsaf_plotter = WSAFPlotter()
+        wsaf_plotter.set_snp_positions(chroms=chroms, pos=pos)
 
     # Create haplotypes from allelic depth
     haplotypes = convert_ad_to_haplotypes(ad)
@@ -68,9 +87,7 @@ def mixed(
 
     # SAMPLE
     simulated_proportions = dirichlet.rvs(alpha=np.ones(K), size=n_simulate)
-
     simulated_bites = np.random.choice(a=range(1, K + 1), size=n_simulate, replace=True)
-
     simulated_meioses = np.random.choice(
         a=range(1, max_M + 1), size=n_simulate, replace=True
     )
@@ -80,14 +97,9 @@ def mixed(
     # VCF
     vcf_builder = VCFBuilder()
     vcf_builder.populate_variant_columns(
-        CHROM=chroms,
-        POS=pos,
-        REF=ref,
-        ALT=alt[:, 0] # assuming biallelic
+        CHROM=chroms, POS=pos, REF=ref, ALT=alt[:, 0]  # assuming biallelic
     )
-    vcf_builder.set_sample_format(
-        AD=True, DP=True
-    )
+    vcf_builder.set_sample_format(AD=True, DP=True)
 
     # Summary table
     sample_dt = {f"samp{i:02d}": [] for i in range(K)}
@@ -120,6 +132,7 @@ def mixed(
         ixs = random.sample(range(n_samples), k=K)
 
         # Extract infection information
+        sample_id = summary_dt["sample_id"][i]
         props = simulated_proportions[i]
         B = simulated_bites[i]
         M = simulated_meioses[i]
@@ -164,7 +177,7 @@ def mixed(
             # Combine across bites
             infection_haplotypes = np.vstack(transmitted)
             ibd_df = pd.concat(ibd_segs)
-            ibd_df.insert(0, "sample_id", summary_dt["sample_id"][i])
+            ibd_df.insert(0, "sample_id", sample_id)
             ibd_dfs.append(ibd_df)
 
             # Compute IBD summary statistics
@@ -176,40 +189,43 @@ def mixed(
             summary_dt["l_ibd"][i] = ibd_l_kbp.mean()
             summary_dt["n50_ibd"][i] = calc_n50(ibd_l_kbp)
 
-            # Simulate read data
-            read_data = simulate_read_data(
-                haplotypes=infection_haplotypes,
-                proportions=props,
-                depth_mean=depth_mean,
-                depth_shape=depth_shape,
-                alt_shape=500,
-                e_0=e_0,
-                e_1=e_1,
-            )
+        # Simulate read data
+        read_data = simulate_read_data(
+            haplotypes=infection_haplotypes,
+            proportions=props,
+            depth_mean=depth_mean,
+            depth_shape=depth_shape,
+            alt_shape=500,
+            e_0=e_0,
+            e_1=e_1,
+        )
 
-            # Store
-            vcf_builder.add_sample(
-                sample_name=summary_dt["sample_id"][i],
-                DP=read_data["depth"],
-                AD=["f{r},{a}" 
-                    for r, a in zip(read_data["ref"],read_data["alt"])]
+        # Store
+        vcf_builder.add_sample(
+            sample_name=sample_id,
+            DP=read_data["depth"],
+            AD=[f"{r},{a}" for r, a in zip(read_data["ref"], read_data["alt"])],
+        )
+
+        # Optionally plot
+        if include_plots:
+            wsaf = read_data["alt"] / read_data["depth"] + 0.01
+            wsaf_plotter.plot(
+                wsaf=wsaf,
+                title=f"{sample_id} | props={', '.join([f'{p:.02f}' for p in props])}",
+                output_path=f"{plot_dir}/plot.{sample_id}.wsaf.png",
             )
 
     # Write results
     # VCF
     vcf_builder.write_vcf(
-        output_path=f"{output_dir}/simulated_infections.vcf",
-        source="pfabricate"
+        output_path=f"{output_dir}/simulated_infections.vcf", source="pfabricate"
     )
     # Summary
     summary_df = pd.DataFrame(summary_dt)
-    summary_df.to_csv(
-        f"{output_dir}/simulated_infections.summary.csv", 
-        index=False
-        )
+    summary_df.to_csv(f"{output_dir}/simulated_infections.summary.csv", index=False)
     # IBD
     combined_ibd = pd.concat(ibd_dfs)
     combined_ibd.to_csv(
-        f"{output_dir}/simulated_infections.ibd_segments.csv",
-        index=False
+        f"{output_dir}/simulated_infections.ibd_segments.csv", index=False
     )
