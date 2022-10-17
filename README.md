@@ -1,6 +1,6 @@
 # pfabricate
 
-`pfabricate` is a command-line tool for filtering and simulating from malaria VCF files. The overarching aim is to provide a framework to easily prepare data for COI estimation and benchmark the performance of COI estimation algorithms
+`pfabricate` is a command-line tool for filtering and simulating from malaria VCF files. The overarching aim is to provide a framework to easily prepare data for COI estimation and benchmark the performance of COI estimation algorithms.
 
 
 ## Install
