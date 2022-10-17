@@ -64,3 +64,4 @@ class WSAFPlotter:
 
         if output_path is not None:
             fig.savefig(output_path, dpi=200, bbox_inches="tight", pad_inches=0.5)
+            plt.close()
