@@ -89,9 +89,8 @@ class FilterVCF:
         self.step = 0
 
     def create_intermediate_dir(self):
-        self.input_dir = os.path.dirname(self.input_vcf)
         self.inter_dir = produce_dir(
-            self.input_dir, f"intermediates_{str(uuid.uuid4())[:8]}"
+            self.output_dir, f"intermediates_{str(uuid.uuid4())[:8]}"
         )
 
     @property
