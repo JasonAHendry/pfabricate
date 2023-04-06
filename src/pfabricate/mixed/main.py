@@ -126,8 +126,8 @@ def mixed(
     summary_dt.update(prop_dt)
 
     # IBD segments
-    ibd_dfs = []
-
+    expected_columns = ["sample_id", "strain1", "strain2", "chrom", "start", "end", "length"]
+    ibd_dfs = [pd.DataFrame(columns=expected_columns)]   # handles cases with no IBD
     for i in range(n_simulate):
 
         # Sample K strains at random
@@ -227,7 +227,7 @@ def mixed(
     summary_df = pd.DataFrame(summary_dt)
     summary_df.to_csv(f"{output_dir}/simulated_infections.summary.csv", index=False)
     # IBD
-    combined_ibd = pd.concat(ibd_dfs)
+    combined_ibd = pd.concat(ibd_dfs)  # Get "no objects to concatenate, for COI=1"
     combined_ibd.to_csv(
         f"{output_dir}/simulated_infections.ibd_segments.csv", index=False
     )
