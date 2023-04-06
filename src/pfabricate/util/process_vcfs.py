@@ -11,7 +11,7 @@ from dataclasses import dataclass
 # --------------------------------------------------------------------------------
 
 
-def bcftools(subcommand, args, input_vcf, run=False):
+def bcftools(subcommand, args, input_vcf, run=True):
     """
     Construct `bcftools` commands from python
 
