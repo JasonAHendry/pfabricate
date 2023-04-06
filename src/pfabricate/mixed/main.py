@@ -88,6 +88,7 @@ def mixed(
 
     # SAMPLE
     simulated_proportions = dirichlet.rvs(alpha=np.ones(K), size=n_simulate)
+    simulated_proportions.sort(axis=1)  # sort for comparison later
     simulated_bites = np.random.choice(a=range(1, K + 1), size=n_simulate, replace=True)
     simulated_meioses = np.random.choice(
         a=range(1, max_M + 1), size=n_simulate, replace=True
@@ -230,3 +231,4 @@ def mixed(
     combined_ibd.to_csv(
         f"{output_dir}/simulated_infections.ibd_segments.csv", index=False
     )
+
