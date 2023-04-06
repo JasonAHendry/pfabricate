@@ -35,9 +35,11 @@ def bcftools(subcommand, args, input_vcf, run=False):
 #
 # --------------------------------------------------------------------------------
 
+
 def convert_ad_array_to_string(ad):
     a = np.apply_along_axis(lambda vs: ",".join([str(v) for v in vs]), 1, ad)
     return a.tolist()
+
 
 @dataclass
 class VCFFormatType:
@@ -197,7 +199,12 @@ class VCFBuilder:
         """
         return pd.DataFrame({**self.variant_dict, **self.sample_dict})
 
-    def write_vcf(self, output_path, source="VCFBuilder"):
+    def write_vcf(self, 
+                  output_path, 
+                  source="VCFBuilder", 
+                  compress=True,
+                  index=True
+                  ):
         """
         Write variant and sample into a VCF file at `output_path`
 
@@ -210,3 +217,14 @@ class VCFBuilder:
             vcf.write(f"#{sep.join(vcf_body.columns)}\n")
             for _, row in vcf_body.iterrows():
                 vcf.write(f"{sep.join([str(v) for v in row.values])}\n")
+        
+        if compress:
+            bcftools(subcommand="view", 
+                     args=["-Ob", f"-o {output_path}.gz"],
+                     input_vcf=output_path
+                     )
+            output_path += ".gz"
+        
+        if index:
+            bcftools("index", args=[], input_vcf=output_path)
+
