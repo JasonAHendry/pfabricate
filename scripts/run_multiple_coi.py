@@ -138,7 +138,7 @@ class SimulatedFiles:
     "--merge",
     is_flag=True,
     show_default=True,
-    default=True,
+    default=False,
     help="Merge output files across COIs into a single set of files.",
 )
 def main(
