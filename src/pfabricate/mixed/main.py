@@ -101,7 +101,7 @@ def mixed(
     vcf_builder.populate_variant_columns(
         CHROM=chroms, POS=pos, REF=ref, ALT=alt[:, 0]  # assuming biallelic
     )
-    vcf_builder.set_sample_format(AD=True, DP=True)
+    vcf_builder.set_sample_format(AD=True, DP=True, GT=True)
 
     # Summary table
     sample_dt = {f"samp{i:02d}": [] for i in range(K)}
@@ -202,11 +202,17 @@ def mixed(
             e_1=e_1,
         )
 
+        # TODO:
+        # - I could also just specifically set the props / depth &c here
+        # - Right here I need to include simulated genotype calls
+        #  - These would be based on the input infection_haplotypes
+
         # Store
         vcf_builder.add_sample(
             sample_name=sample_id,
             DP=read_data["depth"],
             AD=[f"{r},{a}" for r, a in zip(read_data["ref"], read_data["alt"])],
+            GT=read_data["gts"]
         )
 
         # Optionally plot

@@ -1,4 +1,5 @@
 import numpy as np
+from typing import List
 from scipy.stats import nbinom, betabinom
 
 
@@ -15,6 +16,32 @@ def convert_ad_to_haplotypes(ad):
     assert ((haplotypes == 0) | (haplotypes == 1)).all()
 
     return haplotypes
+
+
+def call_genotypes_perfectly(infection_haplotypes: np.ndarray) -> List[str]:
+    """
+    Given a set of haplotypes in an infection, perfectly call the overall
+    genotype
+    
+    """
+
+    k = infection_haplotypes.shape[0]
+    alt_counts = infection_haplotypes.sum(0)
+
+    assert k <= 20
+    assert alt_counts.max() <= k
+    assert alt_counts.min() >= 0
+
+    gts = []
+    for n_alt in alt_counts:
+        if n_alt == 0:
+            gts.append("0/0")
+        elif n_alt == k:
+            gts.append("1/1")
+        else:
+            gts.append("0/1")
+
+    return gts
 
 
 def simulate_read_data(
@@ -56,6 +83,8 @@ def simulate_read_data(
                 Simulated alternative allele counts across SNPs.
             "ref" : ndarray, int, shape (n_snps)
                 Simulated reference allele counts across SNPs.
+            "gts" : List[str, shape(n_snps)
+                Genotype calls for infection haplotypes
 
     """
 
@@ -81,6 +110,10 @@ def simulate_read_data(
     sim_ref = read_depths - sim_alt
 
     # Compile output
-    output_dt = {"depth": read_depths, "alt": sim_alt, "ref": sim_ref}
+    output_dt = {"depth": read_depths, 
+                 "alt": sim_alt, 
+                 "ref": sim_ref,
+                 "gts": call_genotypes_perfectly(haplotypes)
+    }
 
     return output_dt
