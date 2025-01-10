@@ -26,7 +26,7 @@ class DatasetVCF:
         chrom_str = f"{chrom_int:02d}"
         return f"{self.vcf_dir}/{self.vcf_template.format(chrom=chrom_str)}"
     
-    def get_chrom_vcf_arrayjob(self, bash_variable: str = "$CHROM"):
+    def get_chrom_vcf_arrayjob(self, bash_variable: str = '"$CHROM"'):
         return f"{self.vcf_dir}/{self.vcf_template.format(chrom=bash_variable)}"
 
 
