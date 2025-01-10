@@ -1,3 +1,4 @@
+import uuid
 import random
 import numpy as np
 import pandas as pd
@@ -75,6 +76,7 @@ def mixed(
         wsaf_plotter.set_snp_positions(chroms=chroms, pos=pos)
 
     # Create haplotypes from allelic depth
+    # TODO: create them instead from GT
     haplotypes = convert_ad_to_haplotypes(ad)
 
     n_snps = pos.shape[0]
@@ -113,11 +115,12 @@ def mixed(
         "M": simulated_meioses,
         "f_ibd": np.zeros(n_simulate),
         "l_ibd": np.zeros(n_simulate),
+        "n_ibd": np.zeros(n_simulate),
         "n50_ibd": np.zeros(n_simulate),
     }
     summary_dt = {
         "sample_id": [
-            f"SMI{i:03d}-K{K:02d}-B{B:02d}-M{M:02d}"
+            f"SMI{str(uuid.uuid4())[:6].upper()}-K{K:02d}-B{B:02d}-M{M:02d}"
             for i, (B, M) in enumerate(zip(simulated_bites, simulated_meioses))
         ]
     }
@@ -189,6 +192,7 @@ def mixed(
             total_genome_kbp = genome_kbp * n_pairs
             summary_dt["f_ibd"][i] = ibd_l_kbp.sum() / total_genome_kbp
             summary_dt["l_ibd"][i] = ibd_l_kbp.mean()
+            summary_dt["n_ibd"][i] = len(ibd_l_kbp)
             summary_dt["n50_ibd"][i] = calc_n50(ibd_l_kbp)
 
         # Simulate read data
