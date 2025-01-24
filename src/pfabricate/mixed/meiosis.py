@@ -1,13 +1,18 @@
 import random
 import numpy as np
 import pandas as pd
+from typing import List
 from itertools import combinations
 from pfabricate.mixed.chromosomes import ChromosomeFactory
-from pfabricate.util.ibd import create_pairwise_ibd_matrix, get_ibd_segment_dataframe
+from pfabricate.util.ibd import (
+    PairwiseIBDStatistics,
+    create_pairwise_ibd_matrix, 
+    get_ibd_segment_dataframe
+)
 
 
 # TODO
-# - These functions are definitely subtle enough to require good documentation
+# - Needs better documentation
 # - Bonus would be to do a bit of typing stuff
 # - And they are nicely broken up so should be quite easy to write some tests
 
@@ -18,7 +23,7 @@ from pfabricate.util.ibd import create_pairwise_ibd_matrix, get_ibd_segment_data
 # --------------------------------------------------------------------------------
 
 
-def partition_strains(K, n_bites):
+def partition_strains(K: int, n_bites: int) -> List:
     """
     Partition `K` strains randomly into
     `n_bites`
@@ -255,7 +260,12 @@ def meiosis(parents, chromosomes, n_oocysts, n_select=None, force_outbred=True):
 
 
 class MeiosisEngine:
-    def __init__(self, haplotypes, chroms, pos, oocyst_maker):
+    def __init__(self, 
+                 haplotypes: np.ndarray,
+                 chroms: np.ndarray, 
+                 pos: np.ndarray, 
+                 oocyst_maker: OocystMaker
+                 ) -> None:
         """
         Engine for running meiosis multiple times, while tracking
         the IBD that is generated
@@ -271,11 +281,15 @@ class MeiosisEngine:
         self.chroms = chroms
         self.pos = pos
         self.chromosomes = self._create_chromosomes()
+        self.genome_length = sum([c.l_kbp*10**3 for c in self.chromosomes])
         self.oocyst_maker = oocyst_maker
 
         self.parents = self._create_parents()
         self.progeny = None
         self.n_progeny = 0
+
+        self.ibd_segments_df = None
+        self.ibd_pairwise_df = None
 
     def _create_chromosomes(self):
         """
@@ -287,7 +301,7 @@ class MeiosisEngine:
 
         return chrom_factory.create_chromosomes()
 
-    def _create_parents(self):
+    def _create_parents(self) -> np.ndarray:
         """
         Create `parents` where each haplotype
         is assign a unique integer index
@@ -299,7 +313,7 @@ class MeiosisEngine:
             parents[i] = i
         return parents
 
-    def run(self, n_rounds=1, n_select=None, force_outbred=True):
+    def run(self, n_rounds: int = 1, n_select: int = None, force_outbred: bool = True):
         """
         Run meiosis for `n_rounds`, selecting `n_select` progeny
         after each round
@@ -318,28 +332,49 @@ class MeiosisEngine:
             self.parents = self.progeny
             self.n_progeny = self.progeny.shape[0]
 
-    def get_progeny_haplotypes(self):
+    def get_progeny_haplotypes(self) -> np.ndarray:
         """
         Get haplotypes of the current meiotic progeny
 
         """
 
         return self.haplotypes[self.progeny, range(self.progeny.shape[1])]
-
-    def get_ibd_segment_dataframe(self):
+    
+    def detect_generated_ibd(self) -> None:
         """
-        Get IBD segments between all pairwise combinations
-        of the meiotic progeny
+        Detect all of the IBD that was generated during round of meiosis and is now
+        present in the progeny
+
+        Populates both self.ibd_segments_df and self.ibd_pairwise_df
 
         """
-
+        # Create a boolean matrix that indicates presence of IBD between progeny
         ibd_matrix = create_pairwise_ibd_matrix(self.progeny)
 
-        ibd_dfs = []
+        # Iterate over pairs of progeny, detect IBD segments
+        ibd_segment_dfs = []
+        ibd_pairwise_dts = []
         for i, j in combinations(range(self.n_progeny), 2):
+            
+            # Segments
             ibd_df = get_ibd_segment_dataframe(ibd_matrix[i, j], self.chroms, self.pos)
             ibd_df.insert(0, "strain1", i)
             ibd_df.insert(1, "strain2", j)
-            ibd_dfs.append(ibd_df)
+            ibd_segment_dfs.append(ibd_df)
 
-        return pd.concat(ibd_dfs)
+            # Summary statistics
+            ibd_stats = PairwiseIBDStatistics.from_dataframe(ibd_df, self.genome_length).as_dict()
+            ibd_stats["strain1"] = i
+            ibd_stats["strain2"] = j
+            ibd_pairwise_dts.append(ibd_stats)
+
+        # Set attributes
+        self.ibd_segments_df = pd.concat(ibd_segment_dfs)
+        self.ibd_pairwise_df = pd.DataFrame(ibd_pairwise_dts)
+
+    def get_ibd_segment_dataframe(self) -> pd.DataFrame:
+        return self.ibd_segments_df
+    
+    def get_ibd_pairwise_dataframe(self) -> pd.DataFrame:
+        return self.ibd_pairwise_df
+

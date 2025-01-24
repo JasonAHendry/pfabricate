@@ -20,8 +20,8 @@ MAX_M = 3
 DEPTH_MEAN = 50
 DEPTH_SHAPE = 15
 WSAF_SHAPE = 500
-E_0 = 0.0001
-E_1 = 0.005
+E_0 = 0.00001
+E_1 = 0.0005
 
 
 # --------------------------------------------------------------------------------
@@ -36,13 +36,15 @@ class SimulatedFiles:
     vcf: str=""
     summary_csv: str=""
     segment_csv: str=""
+    pairwise_csv: str=""
 
     def __post_init__(self):
         self.vcf = f"{self.output_dir}/simulated_infections.vcf.gz"
         self.summary_csv = f"{self.output_dir}/simulated_infections.summary.csv"
         self.segment_csv = f"{self.output_dir}/simulated_infections.ibd_segments.csv"
+        self.pairwise_csv = f"{self.output_dir}/simulated_infections.ibd_pairwise.csv"
 
-        for f in [self.output_dir, self.vcf, self.summary_csv, self.segment_csv]:
+        for f in [self.output_dir, self.vcf, self.summary_csv, self.segment_csv, self.pairwise_csv]:
             assert os.path.exists(f)
 
 
@@ -196,6 +198,9 @@ def main(
         # IBD segments    
         merged_segment_df = pd.concat([pd.read_csv(f.segment_csv) for f in simulated_files])
         merged_segment_df.to_csv(f"{merged_dir}/simulated_infections.ibd_segments.csv", index=False)
+        # IBD pairwise
+        merged_pairwise_df = pd.concat([pd.read_csv(f.pairwise_csv) for f in simulated_files])
+        merged_pairwise_df.to_csv(f"{merged_dir}/simulated_infections.ibd_pairwise.csv", index=False)
 
         # Summary CSVs
         summary_dfs = []

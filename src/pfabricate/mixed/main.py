@@ -5,7 +5,7 @@ import pandas as pd
 from allel import read_vcf
 from scipy.stats import dirichlet
 from pfabricate.util.generic import produce_dir
-from pfabricate.util.ibd import calc_n50
+from pfabricate.util.ibd import PairwiseIBDStatistics
 from pfabricate.util.process_vcfs import VCFBuilder
 from pfabricate.util.plotting import WSAFPlotter
 from .meiosis import MeiosisEngine, OocystMaker, partition_strains
@@ -131,6 +131,7 @@ def mixed(
     # IBD segments
     expected_columns = ["sample_id", "strain1", "strain2", "chrom", "start", "end", "length"]
     ibd_dfs = [pd.DataFrame(columns=expected_columns)]   # handles cases with no IBD
+    ibd_pairwise_dfs = [pd.DataFrame(columns=["sample_id", "strain1", "strain2", "f_ibd", "l_ibd", "n50_ibd", "n_ibd"])]
     for i in range(n_simulate):
 
         # Sample K strains at random
@@ -154,6 +155,7 @@ def mixed(
 
             transmitted = []
             ibd_segs = []
+            ibd_pairs = []
             for bite in bites:
 
                 if len(bite) == 1:  # if one strain, no meiosis
@@ -176,24 +178,27 @@ def mixed(
                 transmitted.append(bite_haplotypes)
 
                 # Get IBD
-                ibd_segments = meiosis_engine.get_ibd_segment_dataframe()
-                ibd_segs.append(ibd_segments)
+                meiosis_engine.detect_generated_ibd()
+                ibd_segs.append(meiosis_engine.get_ibd_segment_dataframe())
+                ibd_pairs.append(meiosis_engine.get_ibd_pairwise_dataframe())
 
             # Combine across bites
             infection_haplotypes = np.vstack(transmitted)
+            # IBD Segments
             ibd_df = pd.concat(ibd_segs)
             ibd_df.insert(0, "sample_id", sample_id)
             ibd_dfs.append(ibd_df)
+            # Ibd Pairwise
+            ibd_pair_df = pd.concat(ibd_pairs)
+            ibd_pair_df.insert(0, "sample_id", sample_id)
+            ibd_pairwise_dfs.append(ibd_pair_df)
 
-            # Compute IBD summary statistics
-            # TODO: WRAP / CLEAN
-            ibd_l_kbp = np.array(ibd_df["length"] / 10**3)  # this is across all pairs
+            # Compute summary statistics
             n_pairs = K * (K - 1) / 2
-            total_genome_kbp = genome_kbp * n_pairs
-            summary_dt["f_ibd"][i] = ibd_l_kbp.sum() / total_genome_kbp
-            summary_dt["l_ibd"][i] = ibd_l_kbp.mean()
-            summary_dt["n_ibd"][i] = len(ibd_l_kbp)
-            summary_dt["n50_ibd"][i] = calc_n50(ibd_l_kbp)
+            total_genome_length = 10**3 * genome_kbp * n_pairs
+            ibd_stats = PairwiseIBDStatistics.from_dataframe(ibd_df, total_genome_length)
+            for s in ["f_ibd", "l_ibd", "n50_ibd", "n_ibd"]:
+                summary_dt[s][i] = getattr(ibd_stats, s)
 
         # Simulate read data
         read_data = simulate_read_data(
@@ -241,4 +246,5 @@ def mixed(
     combined_ibd.to_csv(
         f"{output_dir}/simulated_infections.ibd_segments.csv", index=False
     )
+    pd.concat(ibd_pairwise_dfs).to_csv(f"{output_dir}/simulated_infections.ibd_pairwise.csv", index=False)
 

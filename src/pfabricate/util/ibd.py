@@ -127,7 +127,7 @@ class PairwiseIBDStatistics:
         self.n50_ibd = calc_n50(ibd_lengths)
 
     @classmethod
-    def from_segment_dataframe(cls, ibd_seg_df: pd.DataFrame, genome_length: float):
+    def from_dataframe(cls, ibd_seg_df: pd.DataFrame, genome_length: float):
         ibd_lengths = np.array(ibd_seg_df["length"])
         return cls(ibd_lengths, genome_length)
     
