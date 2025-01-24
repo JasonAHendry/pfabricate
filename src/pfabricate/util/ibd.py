@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from typing import List, Dict
 from itertools import combinations
 from dataclasses import dataclass
 
@@ -40,7 +41,8 @@ class IBDSegment:
 
     def __post_init__(self):
         self.length = self.end - self.start
-
+        if self.length <= 0:
+            raise ValueError(f"Invalid IBD segment length: {self.length}bp! Must be >0bp.")
 
 def get_ibd_segment_dataframe(ibd, chroms, pos):
     """
@@ -53,6 +55,8 @@ def get_ibd_segment_dataframe(ibd, chroms, pos):
     SNPs
     - This function (minus the dataclass) could be
     quite easily jit'd
+    - What happens when there is no IBD?
+    - Presumably returns an empty dataframe
 
     """
 
@@ -80,7 +84,7 @@ def get_ibd_segment_dataframe(ibd, chroms, pos):
     return pd.DataFrame(ibd_segs)
 
 
-def calc_n50(segments):
+def calc_n50(segments: np.ndarray):
     """
     Calculate the N50 of a set of `segments`
 
@@ -108,3 +112,25 @@ def calc_n50(segments):
     ix = np.argmax(cuml_frac > 0.5)
 
     return segments[ix]
+
+
+class PairwiseIBDStatistics:
+    def __init__(self, ibd_lengths: np.ndarray, genome_length: float) -> None:        
+        self.n_ibd = ibd_lengths.shape[0]
+        if self.n_ibd == 0:
+            self.f_ibd, self.l_ibd, self.n50_ibd = 0, 0, 0
+            return
+        
+        total_ibd = ibd_lengths.sum()
+        self.f_ibd = total_ibd / genome_length
+        self.l_ibd = ibd_lengths.mean()
+        self.n50_ibd = calc_n50(ibd_lengths)
+
+    @classmethod
+    def from_segment_dataframe(cls, ibd_seg_df: pd.DataFrame, genome_length: float):
+        ibd_lengths = np.array(ibd_seg_df["length"])
+        return cls(ibd_lengths, genome_length)
+    
+    def as_dict(self, stats: List[str] = ["f_ibd", "l_ibd", "n50_ibd", "n_ibd"]) -> Dict[str, float]:
+        return {s: getattr(self, s) for s in stats}
+    
