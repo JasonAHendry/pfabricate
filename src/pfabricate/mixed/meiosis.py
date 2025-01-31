@@ -5,9 +5,9 @@ from typing import List
 from itertools import combinations
 from pfabricate.mixed.chromosomes import ChromosomeFactory
 from pfabricate.util.ibd import (
-    PairwiseIBDStatistics,
     create_pairwise_ibd_matrix, 
-    get_ibd_segment_dataframe
+    get_ibd_segments,
+    IBDSummaryStatistics
 )
 
 
@@ -27,6 +27,11 @@ def partition_strains(K: int, n_bites: int) -> List:
     """
     Partition `K` strains randomly into
     `n_bites`
+
+    TODO: 
+    - What is the affect of this, given that we are
+    *sorting* the strains by proportion at the top?
+    - Probably should start from an empty list
 
     params
         K : int
@@ -260,51 +265,74 @@ def meiosis(parents, chromosomes, n_oocysts, n_select=None, force_outbred=True):
 
 
 class MeiosisEngine:
+    """
+    Engine for running meiosis multiple times, while tracking
+    the IBD that is generated
+    
+    """
     def __init__(self, 
                  haplotypes: np.ndarray,
                  chroms: np.ndarray, 
                  pos: np.ndarray, 
-                 oocyst_maker: OocystMaker
-                 ) -> None:
+                 haplotype_ixs: List[int] = None
+    ) -> None:
         """
-        Engine for running meiosis multiple times, while tracking
-        the IBD that is generated
+        Parse input data and prepare key attributes
 
-        Note:
-        - There is some rather ugly coupling here, namely to the
-        `Chromosome` and `ChromosomeFactory` classes
+        params
+            haplotypes : ndarray [n_haplotypes, n_sites]
+                Binary array [0, 1] representing alleles at each
+                site for each haplotype.
+            chroms : ndarray [n_sites]
+                Array of chromosome numbers.
+            pos : ndarray [n_sites]
+                Array of variant site positions.
+            haplotype_ixs: List[int] (optional)
+                List of integers providing *indexes* to associate
+                with each haplotype. These indexes are what define
+                the haplotype within the infection, for purposes
+                of pairwise IBD comparison. E.g. The IBD between
+                strains (0, 1) is defined from the indices in this 
+                list. We allow it to be optionally passed for
+                cases where we are simulating meiosis between
+                a subset of haplotypes in a larger infection.
 
         """
-
+        # Input data
         self.n_haplotypes, self.n_sites = haplotypes.shape
         self.haplotypes = haplotypes
-        self.chroms = chroms
-        self.pos = pos
-        self.chromosomes = self._create_chromosomes()
-        self.genome_length = sum([c.l_kbp*10**3 for c in self.chromosomes])
-        self.oocyst_maker = oocyst_maker
+        self.haplotype_ixs = haplotype_ixs
+        if self.haplotype_ixs is None:
+            self.haplotype_ixs = list(range(self.n_haplotypes))
 
+        # Necessary for simulating meiosis and/or detecting IBD
+        self.chroms, self.pos = chroms, pos
+        self.chromosomes = ChromosomeFactory(chroms, pos).create_chromosomes()
+        self.genome_length = sum([c.l_kbp*10**3 for c in self.chromosomes])
+        self.oocyst_maker = OocystMaker()
+        
+        # Results
         self.parents = self._create_parents()
         self.progeny = None
         self.n_progeny = 0
-
-        self.ibd_segments_df = None
-        self.ibd_pairwise_df = None
-
-    def _create_chromosomes(self):
-        """
-        Prepare chromosomes for meiosis
-
-        """
-
-        chrom_factory = ChromosomeFactory(self.chroms, self.pos)
-
-        return chrom_factory.create_chromosomes()
+        self.ibd_segments = {}
 
     def _create_parents(self) -> np.ndarray:
         """
-        Create `parents` where each haplotype
-        is assign a unique integer index
+        Assigns integers to each parental haplotype in
+        order to track the generation of IBD
+
+
+        Overview
+        * Each parental haplotype gets a unique integer (0, 1, 2...)
+        * These parental haplotypes are subject to meiosis
+        * After meiosis, they are used to detect IBD between pairs of strains
+            * i.e. are two regions derived from the same parental haplotype?
+        * They are also used to create the progeny haplotypes
+            * The indices are used to recover the correct SNPs
+
+        Notes
+        * In theory, this is where we would want to allow for background IBD
 
         """
 
@@ -336,8 +364,11 @@ class MeiosisEngine:
         """
         Get haplotypes of the current meiotic progeny
 
-        """
+        The progeny are created from the parental index arrays,
+        they contain integers (0, 1, 2...) marking what parent they are
+        derived from for each site. These are used to construct the haplotypes.
 
+        """
         return self.haplotypes[self.progeny, range(self.progeny.shape[1])]
     
     def detect_generated_ibd(self) -> None:
@@ -345,36 +376,13 @@ class MeiosisEngine:
         Detect all of the IBD that was generated during round of meiosis and is now
         present in the progeny
 
-        Populates both self.ibd_segments_df and self.ibd_pairwise_df
-
         """
         # Create a boolean matrix that indicates presence of IBD between progeny
         ibd_matrix = create_pairwise_ibd_matrix(self.progeny)
 
         # Iterate over pairs of progeny, detect IBD segments
-        ibd_segment_dfs = []
-        ibd_pairwise_dts = []
         for i, j in combinations(range(self.n_progeny), 2):
-            
-            # Segments
-            ibd_df = get_ibd_segment_dataframe(ibd_matrix[i, j], self.chroms, self.pos)
-            ibd_df.insert(0, "strain1", i)
-            ibd_df.insert(1, "strain2", j)
-            ibd_segment_dfs.append(ibd_df)
-
-            # Summary statistics
-            ibd_stats = PairwiseIBDStatistics.from_dataframe(ibd_df, self.genome_length).as_dict()
-            ibd_stats["strain1"] = i
-            ibd_stats["strain2"] = j
-            ibd_pairwise_dts.append(ibd_stats)
-
-        # Set attributes
-        self.ibd_segments_df = pd.concat(ibd_segment_dfs)
-        self.ibd_pairwise_df = pd.DataFrame(ibd_pairwise_dts)
-
-    def get_ibd_segment_dataframe(self) -> pd.DataFrame:
-        return self.ibd_segments_df
-    
-    def get_ibd_pairwise_dataframe(self) -> pd.DataFrame:
-        return self.ibd_pairwise_df
+            s1 = self.haplotype_ixs[i]
+            s2 = self.haplotype_ixs[j]
+            self.ibd_segments[(s1, s2)] = get_ibd_segments(ibd_matrix[i, j], self.chroms, self.pos)
 

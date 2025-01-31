@@ -8,6 +8,7 @@ import click
 
 
 N_SIMULATE = 20
+MAX_K = 4
 MAX_M = 3
 DEPTH_MEAN = 50
 DEPTH_SHAPE = 15
@@ -34,7 +35,7 @@ E_1 = 0.005
     "-o", "--output_dir", type=str, required=True, help="Path of output directory."
 )
 @click.option(
-    "-K", "--COI", type=int, required=True, help="Complexity of infection to simulate."
+    "-K", "--max_K", type=int, default=MAX_K, show_default=True, help="Maximum complexity of infection to simulate."
 )
 @click.option(
     "-n",
@@ -43,7 +44,7 @@ E_1 = 0.005
     required=False,
     default=N_SIMULATE,
     show_default=True,
-    help=f"Number of mixed infections to simulate.",
+    help=f"Number of mixed infections to simulate for each COI.",
 )
 @click.option(
     "-M",
@@ -104,10 +105,17 @@ E_1 = 0.005
     default=False,
     help="Create WSAF vs genomic position plots for every simulated infection.",
 )
+@click.option(
+    "--id_prefix",
+    type=str,
+    required=False,
+    default="SMI",
+    help="Provide a custom ID prefix for simulated samples. [Optional]"
+)
 def mixed(
     input_vcf,
     output_dir,
-    coi,
+    max_k,
     n_simulate,
     max_m,
     depth_mean,
@@ -116,9 +124,10 @@ def mixed(
     e_0,
     e_1,
     include_plots,
+    id_prefix,
 ):
     """
-    Stochastically simulate mixed infections of a particular COI from a VCF
+    Stochastically simulate mixed infections from a VCF
 
     """
     from .main import mixed
@@ -126,7 +135,7 @@ def mixed(
     mixed(
         input_vcf,
         output_dir,
-        coi,
+        max_k,
         n_simulate,
         max_m,
         depth_mean,
@@ -135,4 +144,5 @@ def mixed(
         e_0,
         e_1,
         include_plots,
+        id_prefix
     )
